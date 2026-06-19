@@ -11,7 +11,7 @@ function calculateVisibleCells(
   xMin: number,
   yMin: number,
   xMax: number,
-  yMax: number
+  yMax: number,
 ) {
   const colStart = Math.max(0, Math.floor(xMin / cellSize));
   const colEnd = Math.min(cols - 1, Math.floor(xMax / cellSize));
@@ -81,10 +81,10 @@ describe('Fleet Client-Side Aggregation', () => {
     const aggregated = preAggregateFleetData(fleets);
     // Since mock name starts with "US-" and "EU-", they should be grouped into regions "US" and "EU"
     expect(aggregated.length).toBe(2);
-    
+
     const usGroup = aggregated.find((f) => f.name.includes('US'));
     const euGroup = aggregated.find((f) => f.name.includes('EU'));
-    
+
     expect(usGroup).toBeDefined();
     expect(euGroup).toBeDefined();
     expect(usGroup?.deviceCount).toBe(22500 * 50);
