@@ -17,10 +17,9 @@ interface UseChunkedHistoryOptions {
 function createWorker(): Worker | null {
   if (typeof window === 'undefined') return null;
   try {
-    return new Worker(
-      new URL('../workers/analyticsDataProcessor.worker.ts', import.meta.url),
-      { type: 'module' },
-    );
+    return new Worker(new URL('../workers/analyticsDataProcessor.worker.ts', import.meta.url), {
+      type: 'module',
+    });
   } catch {
     return null;
   }
@@ -84,8 +83,7 @@ function enforceMemoryCap(points: TelemetryHistoryPoint[]): TelemetryHistoryPoin
     const sliceEnd = Math.min(i + stride, points.length);
     const slice = points.slice(i, sliceEnd);
     const avgValue = slice.reduce((sum, p) => sum + p.value, 0) / slice.length;
-    const midTimestamp =
-      slice[Math.floor(slice.length / 2)]?.timestamp ?? slice[0]?.timestamp ?? 0;
+    const midTimestamp = slice[Math.floor(slice.length / 2)]?.timestamp ?? slice[0]?.timestamp ?? 0;
     downsampled.push({ timestamp: midTimestamp, value: avgValue });
   }
   return downsampled;
