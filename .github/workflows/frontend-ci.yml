@@ -74,7 +74,26 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Start production server
+        run: |
+          npx next start -p 3000 &
+          echo $! > ${{ runner.temp }}/server.pid
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000 > /dev/null 2>&1; then
+              echo "Server ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
       - name: Run Lighthouse CI
+        env:
+          CHROME_FLAGS: "--no-sandbox --headless"
         run: |
           npm i -g @lhci/cli@0.14.x
-          lhci autorun --collect.staticDistDir=./out || lhci autorun --collect.staticDistDir=./.next || echo "Lighthouse audit skipped (no static export)"
+          lhci collect --url=http://localhost:3000 --url=http://localhost:3000/dashboard
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f "${{ runner.temp }}/server.pid" ]; then
+            kill $(cat "${{ runner.temp }}/server.pid") 2>/dev/null || true
+          fi
