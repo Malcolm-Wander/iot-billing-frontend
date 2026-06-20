@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import type { PendingTransaction } from '@/services/indexedDbCache';
 
 interface TxStatusPillProps {
@@ -7,12 +8,25 @@ interface TxStatusPillProps {
 }
 
 export function TxStatusPill({ transaction }: TxStatusPillProps) {
+  const [now, setNow] = useState(Date.now());
+
+  // Update time every second to check if we should show "Confirming..."
+  useEffect(() => {
+    if (transaction.status === 'pending') {
+      const interval = setInterval(() => setNow(Date.now()), 1000);
+      return () => clearInterval(interval);
+    }
+  }, [transaction.status]);
+
   const getStatusDisplay = () => {
     switch (transaction.status) {
       case 'pending':
+        const isConfirming = now - transaction.createdAt > 30000;
         return {
-          text: 'Submitted (pending confirmation)',
-          color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+          text: isConfirming ? 'Confirming...' : 'Submitted (pending confirmation)',
+          color: isConfirming
+            ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
+            : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
           icon: '⏳',
         };
       case 'confirmed':

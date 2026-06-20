@@ -2,6 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { EscrowBalance } from '@/types';
+import BigNumber from 'bignumber.js';
+import { fromSorobanInt, toSorobanInt } from '@/utils/currencyFormatter';
 
 async function fetchEscrowBalance(contractId: string): Promise<EscrowBalance> {
   const response = await fetch(`/api/escrow/${contractId}/balance`);
@@ -78,10 +80,15 @@ export function useEscrowContract(contractId: string) {
       await queryClient.cancelQueries({ queryKey: ['escrowBalance', contractId] });
       const previous = queryClient.getQueryData<EscrowBalance>(['escrowBalance', contractId]);
       if (previous) {
+        // Convert to display values for BigNumber arithmetic
+        const prevTotalLocked = new BigNumber(fromSorobanInt(previous.totalLocked));
+        const prevAvailable = new BigNumber(fromSorobanInt(previous.available));
+        const paramAmount = new BigNumber(fromSorobanInt(params.amount));
+
         const optimistic: EscrowBalance = {
           ...previous,
-          totalLocked: (BigInt(previous.totalLocked) + BigInt(params.amount)).toString(),
-          available: (BigInt(previous.available) - BigInt(params.amount)).toString(),
+          totalLocked: toSorobanInt(prevTotalLocked.plus(paramAmount)),
+          available: toSorobanInt(prevAvailable.minus(paramAmount)),
         };
         queryClient.setQueryData(['escrowBalance', contractId], optimistic);
       }
@@ -112,10 +119,15 @@ export function useEscrowContract(contractId: string) {
       await queryClient.cancelQueries({ queryKey: ['escrowBalance', contractId] });
       const previous = queryClient.getQueryData<EscrowBalance>(['escrowBalance', contractId]);
       if (previous) {
+        // Convert to display values for BigNumber arithmetic
+        const prevTotalLocked = new BigNumber(fromSorobanInt(previous.totalLocked));
+        const prevAvailable = new BigNumber(fromSorobanInt(previous.available));
+        const paramAmount = new BigNumber(fromSorobanInt(params.amount));
+
         const optimistic: EscrowBalance = {
           ...previous,
-          totalLocked: (BigInt(previous.totalLocked) - BigInt(params.amount)).toString(),
-          available: (BigInt(previous.available) + BigInt(params.amount)).toString(),
+          totalLocked: toSorobanInt(prevTotalLocked.minus(paramAmount)),
+          available: toSorobanInt(prevAvailable.plus(paramAmount)),
         };
         queryClient.setQueryData(['escrowBalance', contractId], optimistic);
       }

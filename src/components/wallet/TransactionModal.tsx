@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import { useWallet } from '@/components/providers/WalletProvider';
 import { ErrorDecoder } from '@/utils/errorDecoder';
 import { useTxRetryQueue } from '@/hooks/useTxRetryQueue';
+import { useEscrowContract } from '@/hooks/useEscrowBalance';
 import { TxStatusList } from './TxStatusPill';
 import { GasEstimator } from './GasEstimator';
 import { useGasEstimate } from '@/hooks/useGasEstimate';
+import { toSorobanInt } from '@/utils/currencyFormatter';
 
 function ErrorBanner({ decoded, raw }: { decoded: string; raw: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -48,7 +50,6 @@ export function TransactionModal({
 }: TransactionModalProps) {
   const { metrics } = useWallet();
   const [amount, setAmount] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [txError, setTxError] = useState<{ decoded: string; raw: string } | null>(null);
 
   const {
@@ -59,10 +60,13 @@ export function TransactionModal({
     reset: resetGasEstimate,
   } = useGasEstimate();
 
+  const { depositMutation, withdrawMutation } = useEscrowContract(contractId);
+
   // Initialize retry queue with persistence
   const { pendingTransactions, enqueue, clearCompleted } = useTxRetryQueue(10, 'escrow-queue');
 
   const isDeposit = type === 'escrow_deposit';
+  const mutation = isDeposit ? depositMutation : withdrawMutation;
 
   const handleEstimateGas = async () => {
     if (!amount || !metrics?.publicKey) return;
@@ -81,44 +85,35 @@ export function TransactionModal({
 
   const handleSubmit = async () => {
     if (!amount || !metrics?.publicKey) return;
-    setSubmitting(true);
     setTxError(null);
+    
     try {
-      const response = await fetch(`/api/escrow/${isDeposit ? 'deposit' : 'withdraw'}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contractId,
-          amount,
-          asset,
-          publicKey: metrics.publicKey,
-        }),
+      // Convert display amount to Soroban integer format
+      const sorobanAmount = toSorobanInt(amount);
+      
+      const data = await mutation.mutateAsync({
+        contractId,
+        amount: sorobanAmount,
+        asset,
+        publicKey: metrics.publicKey,
       });
-      if (response.ok) {
-        const data = await response.json();
-        const hash = data.hash as string;
+      
+      const hash = data.hash as string;
 
-        // Add to retry queue with deduplication
-        await enqueue({
-          hash,
-          contractId,
-          amount,
-          asset,
-          publicKey: metrics.publicKey,
-          type,
-        });
+      // Add to retry queue with deduplication
+      await enqueue({
+        hash,
+        contractId,
+        amount: sorobanAmount,
+        asset,
+        publicKey: metrics.publicKey,
+        type,
+      });
 
-        onComplete?.(hash);
-      } else {
-        const errData = await response.json().catch(() => ({}));
-        const raw = (errData.error as string) ?? response.statusText;
-        setTxError({ decoded: errorDecoder.tryDecode(raw), raw });
-      }
+      onComplete?.(hash);
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Unknown error';
       setTxError({ decoded: errorDecoder.tryDecode(raw), raw });
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -183,10 +178,10 @@ export function TransactionModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!amount || submitting || (simulationError !== null && feeBreakdown === null)}
+            disabled={!amount || mutation.isPending || (simulationError !== null && feeBreakdown === null)}
             className="flex-1 rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-500 disabled:opacity-50"
           >
-            {submitting ? 'Submitting...' : isDeposit ? 'Deposit' : 'Withdraw'}
+            {mutation.isPending ? 'Submitting...' : isDeposit ? 'Deposit' : 'Withdraw'}
           </button>
         </div>
       </div>
